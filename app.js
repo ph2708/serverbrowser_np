@@ -31,7 +31,7 @@ class GamesNetPanzerBrowser {
       port: 5432,
       database: 'postgres',
       user: 'postgres',
-      password: '1234'
+      password: 'your_db_password'
     };
 
     // Conecta ao banco de dados
