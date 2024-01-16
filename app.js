@@ -248,11 +248,11 @@ class GamesNetPanzerBrowser {
         `
         INSERT INTO ranking(player_name, kills, deaths, month_year)
         VALUES($/player_name/, $/kills/, $/deaths/, $/month_year/)
-        ON CONFLICT (player_name, month_year)
+        ON CONFLICT ON CONSTRAINT unique_player_month
         DO UPDATE SET
           kills = ranking.kills + EXCLUDED.kills,
           deaths = ranking.deaths + EXCLUDED.deaths
-      `,
+        `,
         playerData
       )
         .then(() => {
