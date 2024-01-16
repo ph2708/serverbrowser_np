@@ -5,7 +5,7 @@ const pgp = require('pg-promise')();
 const dgram = require('dgram');
 const fs = require('fs');
 const path = require('path');
-const http = require('http');
+const http = require('https');
 const net = require('net');
 const express = require('express');
 const RankingManager = require('./ranking'); // Atualize o caminho conforme necessário
@@ -292,7 +292,12 @@ class GamesNetPanzerBrowser {
   
 
   startHTTPServer() {
-    const server = http.createServer(async (req, res) => {
+    const options = {
+      key: fs.readFileSync('/etc/letsencrypt/live/your_directory/privkey.pem'), // Substitua com o caminho da sua chave privada
+      cert: fs.readFileSync('/etc/letsencrypt/live/your_directory/fullchain.pem'), // Substitua com o caminho do seu certificado
+    };
+
+    const server = https.createServer(options, async (req, res) => {
       if (req.url === '/ranking') {
         const rankingHTMLFilePath = path.join(__dirname, 'ranking', 'ranking.html');
         const rankingHTML = fs.readFileSync(rankingHTMLFilePath, 'utf-8');
