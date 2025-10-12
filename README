@@ -173,6 +173,20 @@ sudo iptables -A INPUT -p tcp --dport 443 -j ACCEPT
 sudo ufw allow 443
 ```
 
+### 🇧🇷 Usando Firewalld
+```bash
+sudo apt install firewalld -y
+sudo systemctl enable firewalld
+sudo systemctl start firewalld
+
+# Open TCP and UDP ports 3031
+sudo firewall-cmd --zone=public --permanent --add-port=3031/tcp
+sudo firewall-cmd --zone=public --permanent --add-port=3031/udp
+sudo firewall-cmd --reload
+
+# Check open ports
+sudo firewall-cmd --zone=public --list-ports
+```
 ---
 
 ## 📄 **Licença / License**
