@@ -33,6 +33,17 @@ class GamesNetPanzerBrowser {
     this.startHybridServer();
   }
 
+  // Escapa texto para inclusão segura em atributos/HTML
+  escapeHtml(str) {
+    if (!str) return "";
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
   // Aplica todas as deltas agregadas ao banco (executa updatePlayerStats por jogador)
   flushPendingDeltas() {
     const names = Object.keys(this.pendingDeltas);
@@ -396,7 +407,9 @@ class GamesNetPanzerBrowser {
       } else if (urlObj.pathname === "/statistics") {
         // Nova rota para estatísticas avançadas (apenas UI/visual) - não altera coleta de dados
         const { getAllPlayerStats, describeMetrics } = require("./statistics");
-        let stats = getAllPlayerStats();
+        const search = urlObj.searchParams.get("search") || "";
+        // repassa o search para filtrar jogadores na lista exibida
+        let stats = getAllPlayerStats(this.currentMonthYear, search);
         // Ordena por strength para destacar top 3
         stats = stats.slice().sort((a,b)=> b.strength - a.strength);
         const metricsDesc = describeMetrics();
@@ -420,7 +433,7 @@ class GamesNetPanzerBrowser {
           .topline{display:flex;justify-content:space-between;align-items:center}
         `;
 
-        let html = `<!doctype html><html><head><meta charset="utf-8"><meta name='viewport' content='width=device-width, initial-scale=1'><title>Estatísticas Avançadas</title><style>${this.getCSS()}${css}</style></head><body><div class="container"><div class="card topline"><div><h1>Estatísticas Avançadas - ${this.currentMonthYear}</h1><div class="muted">Total jogadores: ${stats.length}</div></div><div><div class="controls"><input id="search" type="text" placeholder="Buscar jogador..." /></div></div></div>`;
+  let html = `<!doctype html><html><head><meta charset="utf-8"><meta name='viewport' content='width=device-width, initial-scale=1'><title>Estatísticas Avançadas</title><style>${this.getCSS()}${css}</style></head><body><div class="container"><div class="card topline"><div><h1>Estatísticas Avançadas - ${this.currentMonthYear}</h1><div class="muted">Total jogadores: ${stats.length}</div></div><div><div class="controls"><form method="GET" action="/statistics"><input id="search" name="search" type="text" placeholder="Buscar jogador..." value="${this.escapeHtml(search)}" /><button type="submit">Buscar</button></form></div></div></div>`;
 
         // Top 3 destacados com troféus
         html += `<div class="card"><h2 style="margin:0 0 8px 0">Top 3</h2><div style="display:flex;gap:10px;flex-wrap:wrap">`;

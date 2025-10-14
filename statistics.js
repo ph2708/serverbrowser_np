@@ -61,8 +61,10 @@ function calculateStats(player) {
   };
 }
 
-function getAllPlayerStats(monthYear = getCurrentMonthYear(), limit = 500) {
-  const ranking = getRanking(monthYear, "", limit, 0);
+function getAllPlayerStats(monthYear = getCurrentMonthYear(), search = "", limit = 500) {
+  // Agora aceita um parâmetro `search` que é repassado para getRanking,
+  // permitindo filtrar jogadores pelo nome (como no /ranking).
+  const ranking = getRanking(monthYear, search || "", limit, 0);
   return ranking.map(calculateStats);
 }
 
