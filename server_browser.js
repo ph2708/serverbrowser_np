@@ -228,23 +228,77 @@ class GamesNetPanzerBrowser {
 
   getCSS() {
     return `
-    /* Base */
+    /* Base variables */
     :root{--bg:#0f172a;--card:#0b1220;--muted:#94a3b8;--accent:#06b6d4;--glass:rgba(255,255,255,0.04)}
-    body{font-family:Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; background:linear-gradient(180deg,#0b1220 0%, #071027 100%);color:#e6eef8;margin:0;padding:28px}
+
+    /* Page */
+    html,body{height:100%}
+    body{font-family:Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; background:linear-gradient(180deg,#0b1220 0%, #071027 100%);color:#e6eef8;margin:0;padding:28px;-webkit-font-smoothing:antialiased}
     .container{max-width:1200px;margin:0 auto}
-    h1{font-weight:600;margin:0 0 8px 0;color:#fff}
+
+    /* Cards and headings */
+    h1{font-weight:600;margin:0 0 8px 0;color:#fff;font-size:20px}
     .card{background:var(--card);border-radius:12px;padding:14px;box-shadow:0 8px 24px rgba(2,6,23,0.6);margin-bottom:18px}
-    table{width:100%;border-collapse:collapse;margin-top:10px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:8px;overflow:hidden}
-    thead th{padding:12px 14px;background:linear-gradient(90deg,var(--bg),#07122a);color:#fff;text-align:left;position:relative}
-    tbody td{padding:12px 14px;border-top:1px solid rgba(255,255,255,0.03)}
+
+  /* Ranking header specific */
+  .ranking-header{display:flex;flex-direction:column;gap:8px}
+  .ranking-header .title-row{display:flex;justify-content:space-between;align-items:center;gap:12px}
+  .ranking-header .title-row h1{font-size:20px;margin:0}
+  .ranking-search{display:flex;gap:8px}
+  .ranking-search input[type=text]{min-width:200px;max-width:360px;width:100%}
+
+    /* Table wrapper for horizontal scroll on small screens */
+    .table-wrap{overflow:auto;-webkit-overflow-scrolling:touch;border-radius:8px}
+    table{width:100%;border-collapse:collapse;margin-top:10px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01))}
+    thead th{padding:12px 14px;background:linear-gradient(90deg,var(--bg),#07122a);color:#fff;text-align:left;position:relative;white-space:nowrap}
+    tbody td{padding:12px 14px;border-top:1px solid rgba(255,255,255,0.03);vertical-align:middle;white-space:nowrap}
     tbody tr:hover td{background:linear-gradient(90deg, rgba(255,255,255,0.01), rgba(255,255,255,0.02))}
+
+    /* Compact text and badges */
     .muted{color:var(--muted);font-size:13px}
     .badge{display:inline-block;padding:6px 10px;border-radius:999px;background:var(--glass);color:#e6eef8;font-weight:600}
+
+    /* Controls */
     .search{display:flex;gap:8px;align-items:center}
-    input[type=text]{padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit}
-    a.button{display:inline-block;padding:8px 12px;border-radius:8px;background:linear-gradient(90deg,#06b6d4,#3b82f6);color:#061024;text-decoration:none;font-weight:600}
+    input[type=text]{padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit;min-width:0}
+    a.button, button.button{display:inline-block;padding:8px 12px;border-radius:8px;background:linear-gradient(90deg,#06b6d4,#3b82f6);color:#061024;text-decoration:none;font-weight:600;border:none}
+
     .trophy{font-size:18px;margin-right:6px}
-    @media (max-width:760px){body{padding:12px}.container{padding:0 8px}}
+
+    /* Responsive: stack header and compress table on narrow screens */
+    @media (max-width:900px){
+      h1{font-size:18px}
+      .card{padding:12px}
+      thead th, tbody td{padding:10px 8px}
+    }
+
+    @media (max-width:760px){
+      .ranking-header{gap:6px}
+      .ranking-header .title-row{flex-direction:row}
+      .ranking-search{width:100%}
+      .ranking-search input[type=text]{flex:1 1 auto;min-width:0}
+    }
+
+    @media (max-width:560px){
+      body{padding:12px}
+      .container{padding:0 8px}
+      .card{padding:10px}
+      .topline{flex-direction:column;align-items:flex-start;gap:8px}
+      /* make table more readable on very small screens: use grid rows with label/value */
+      table{border-radius:6px;overflow:hidden}
+      thead{display:none}
+      tbody tr{display:grid;grid-template-columns:1fr;gap:6px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.03)}
+      tbody td{display:block;padding:0;border-top:0;white-space:normal}
+    tbody td::before{content:attr(data-label) ": ";color:var(--muted);font-weight:600;margin-right:6px}
+    /* put the label on its own line for the players column so the list appears below */
+    td[data-label="Jogadores"]::before{display:block;margin-bottom:6px}
+    /* players column may contain many players; allow wrapping and spacing */
+    td[data-label="Jogadores"]{word-break:break-word}
+    td[data-label="Jogadores"] span.muted{display:inline-block;margin-left:6px}
+      /* center pagination badge on small screens */
+      .badge{display:inline-block;margin:6px auto;padding:6px 10px}
+    }
+
     `;
   }
 
@@ -261,18 +315,19 @@ class GamesNetPanzerBrowser {
       return '';
     };
 
-    let html = `<html><head><title>Ranking Mensal</title><meta name="viewport" content="width=device-width, initial-scale=1"><style>${this.getCSS()}</style></head><body><div class="container">`;
-    html += `<div class="card"><header style="display:flex;justify-content:space-between;align-items:center"><div><h1>Ranking Mensal - ${this.currentMonthYear}</h1><div class="muted">Total: ${total} jogadores</div></div><div><form method="GET" style="display:flex;gap:8px"><input type="text" name="search" placeholder="Buscar jogador" value="${search}"><button class="button" type="submit">Buscar</button></form></div></header></div>`;
+  let html = `<html><head><title>Ranking Mensal</title><meta name="viewport" content="width=device-width, initial-scale=1"><style>${this.getCSS()}</style></head><body><div class="container">`;
+  // header: title + date on one line, search on the next line (use CSS classes)
+  html += `<div class="card"><header class="ranking-header"><div class="title-row"><h1>Ranking Mensal</h1><div class="muted">${this.currentMonthYear}</div></div><div class="muted">Total: ${total} jogadores</div><div><form method="GET" class="ranking-search"><input type="text" name="search" placeholder="Buscar jogador" value="${search}"><button class="button" type="submit">Buscar</button></form></div></header></div>`;
 
-    html += `<div class="card"><table class="ranking-table"><thead><tr><th>Rank</th><th>Jogador</th><th>Kills</th><th>Deaths</th><th>Points</th></tr></thead><tbody>`;
+  html += `<div class="card"><div class="table-wrap"><table class="ranking-table"><thead><tr><th>Rank</th><th>Jogador</th><th>Kills</th><th>Deaths</th><th>Points</th></tr></thead><tbody>`;
 
     ranking.forEach((p, i) => {
       const rank = offset + i + 1;
       const trophyEmoji = trophy(rank);
-      html += `<tr><td>${rank} ${trophyEmoji ? `<span class="trophy">${trophyEmoji}</span>` : ''}</td><td>${p.name}</td><td>${p.kills}</td><td>${p.deaths}</td><td>${p.points}</td></tr>`;
+  html += `<tr><td data-label="Rank">${rank} ${trophyEmoji ? `<span class="trophy">${trophyEmoji}</span>` : ''}</td><td data-label="Jogador">${p.name}</td><td data-label="Kills">${p.kills}</td><td data-label="Deaths">${p.deaths}</td><td data-label="Points">${p.points}</td></tr>`;
     });
 
-    html += `</tbody></table></div><div style="text-align:center;margin-top:12px">`;
+  html += `</tbody></table></div><div style="text-align:center;margin-top:12px">`;
     for (let i = 1; i <= totalPages; i++) {
       if (i === page) html += `<span class="badge">${i}</span> `;
       else
@@ -284,19 +339,15 @@ class GamesNetPanzerBrowser {
   }
 
   createHTMLTable() {
-    let html = `<html><head><title>NetPanzer Servers</title><meta name="viewport" content="width=device-width, initial-scale=1"><style>${this.getCSS()}</style></head><body><div class="container"><div class="card"><h1>NetPanzer Servers</h1><div class="muted">Servidores listados: ${Object.keys(this.gameservers).length}</div></div><div class="card"><table class="servers-table"><thead><tr><th>Porta</th><th>Servidor</th><th>Mapa</th><th>Estilo</th><th>Players</th><th>Detalhes</th></tr></thead><tbody>`;
+  let html = `<html><head><title>NetPanzer Servers</title><meta name="viewport" content="width=device-width, initial-scale=1"><style>${this.getCSS()}</style></head><body><div class="container"><div class="card"><h1>NetPanzer Servers</h1><div class="muted">Servidores listados: ${Object.keys(this.gameservers).length}</div></div><div class="card"><div class="table-wrap"><table class="servers-table"><thead><tr><th>Porta</th><th>Servidor</th><th>Mapa</th><th>Estilo</th><th>Contagem</th><th>Jogadores</th></tr></thead><tbody>`;
     Object.values(this.gameservers).forEach((s) => {
       const c = s.cache || { players: [] };
-      html += `<tr><td>${s.port}</td><td>${c.hostname || "N/A"}</td><td>${c.mapname || "N/A"}</td><td>${c.gamestyle || "N/A"}</td><td>${c.numplayers || 0}</td><td>${
-        c.players
-          .map(
-            (p) =>
-              `${p.name} <span class="muted">(K:${p.kills} D:${p.deaths} P:${p.points})</span>`
-          )
-          .join("<br>") || "<span class='muted'>Sem jogadores</span>"
-      }</td></tr>`;
+      const details = c.players
+        .map((p) => `${p.name} <span class="muted">(K:${p.kills} D:${p.deaths} P:${p.points})</span>`)
+        .join("<br>") || "<span class='muted'>Sem jogadores</span>";
+      html += `<tr><td data-label="Porta">${s.port}</td><td data-label="Servidor">${c.hostname || "N/A"}</td><td data-label="Mapa">${c.mapname || "N/A"}</td><td data-label="Estilo">${c.gamestyle || "N/A"}</td><td data-label="Contagem">${c.numplayers || 0}</td><td data-label="Jogadores">${details}</td></tr>`;
     });
-    html += `</tbody></table></div></div></body></html>`;
+    html += `</tbody></table></div></div></div></body></html>`;
     return html;
   }
 
@@ -342,12 +393,12 @@ class GamesNetPanzerBrowser {
         const page = parseInt(urlObj.searchParams.get("page") || "1", 10);
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
         res.end(this.generateRankingHTML(search, page));
-  } else if (urlObj.pathname === "/estatisticas") {
+      } else if (urlObj.pathname === "/statistics") {
         // Nova rota para estatísticas avançadas (apenas UI/visual) - não altera coleta de dados
         const { getAllPlayerStats, describeMetrics } = require("./statistics");
-  let stats = getAllPlayerStats();
-  // Ordena por strength para destacar top 3
-  stats = stats.slice().sort((a,b)=> b.strength - a.strength);
+        let stats = getAllPlayerStats();
+        // Ordena por strength para destacar top 3
+        stats = stats.slice().sort((a,b)=> b.strength - a.strength);
         const metricsDesc = describeMetrics();
 
         const css = `
@@ -369,7 +420,7 @@ class GamesNetPanzerBrowser {
           .topline{display:flex;justify-content:space-between;align-items:center}
         `;
 
-        let html = `<!doctype html><html><head><meta charset="utf-8"><meta name='viewport' content='width=device-width, initial-scale=1'><title>Estatísticas Avançadas</title><style>${this.getCSS()}${css}</style></head><body><div class="container"><div class="card topline"><div><h1>Estatísticas Avançadas - ${this.currentMonthYear}</h1><div class="muted">Total jogadores: ${stats.length}</div></div><div><div class="controls"><input id="search" type="text" placeholder="Buscar jogador..." /><button id="export">Export CSV</button></div></div></div>`;
+        let html = `<!doctype html><html><head><meta charset="utf-8"><meta name='viewport' content='width=device-width, initial-scale=1'><title>Estatísticas Avançadas</title><style>${this.getCSS()}${css}</style></head><body><div class="container"><div class="card topline"><div><h1>Estatísticas Avançadas - ${this.currentMonthYear}</h1><div class="muted">Total jogadores: ${stats.length}</div></div><div><div class="controls"><input id="search" type="text" placeholder="Buscar jogador..." /></div></div></div>`;
 
         // Top 3 destacados com troféus
         html += `<div class="card"><h2 style="margin:0 0 8px 0">Top 3 por Força</h2><div style="display:flex;gap:10px;flex-wrap:wrap">`;
@@ -395,41 +446,6 @@ class GamesNetPanzerBrowser {
         html += `<div class="card"><strong>O que é cada métrica?</strong><ul style="margin-top:8px">`;
         for (const k in metricsDesc) html += `<li><strong>${k}</strong>: ${metricsDesc[k]}</li>`;
         html += `</ul></div>`;
-
-        // client-side JS: busca e export CSV
-        html += `<script>
-          (function(){
-            const search = document.getElementById('search');
-            const exportBtn = document.getElementById('export');
-            const players = Array.from(document.querySelectorAll('.player'));
-
-            function filter(){
-              const q = search.value.trim().toLowerCase();
-              players.forEach(p => {
-                const name = p.querySelector('h3').innerText.toLowerCase();
-                p.style.display = q? (name.includes(q)? '' : 'none') : '';
-              });
-            }
-            search.addEventListener('input', filter);
-
-            exportBtn.addEventListener('click', ()=>{
-              const rows = [['Rank','Name','Kills','Deaths','Points','ActionCount','ExpertRate','EfficiencyRate','ChampRate','Strength']];
-              players.forEach((p, i)=>{
-                if(p.style.display === 'none') return;
-                const txt = p.querySelector('.small').innerText;
-                // small: contains K/D/P/Strength, best-effort parse
-                const m = txt.match(/K:(\d+) • D:(\d+) • P:(\d+) • Strength:([-\d\.]+)/);
-                const kills = m? m[1] : '';
-                const deaths = m? m[2] : '';
-                const points = m? m[3] : '';
-                const strength = m? m[4] : '';
-                rows.push([i+1, p.querySelector('h3').innerText.replace(/^\d+\.\s*/,''), kills, deaths, points, '', '', '', '', strength]);
-              });
-              const csv = rows.map(r=> r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');
-              const a = document.createElement('a'); a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv); a.download = 'estatisticas.csv'; a.click();
-            });
-          })();
-        </script>`;
 
         html += `</div></body></html>`;
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
