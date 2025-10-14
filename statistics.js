@@ -69,12 +69,12 @@ function getAllPlayerStats(monthYear = getCurrentMonthYear(), limit = 500) {
 // Função auxiliar que descreve cada métrica (útil para documentação/UI)
 function describeMetrics() {
   return {
-    activityRate: "Total de ações registradas (kills + deaths) no mês.",
-    expertRate: "Proporção de ações que são kills (0..1). Quanto mais próximo de 1, melhor).",
-    killerRate: "Kills por 100 ações (percentual).",
-    efficiencyRate: "Pontos por ação (points / (kills+deaths)).",
-    champRate: "Pontos por kill (points / kills).",
-    strength:
+    ActivityRate: "Total de ações registradas (kills + deaths) no mês.",
+    ExpertRate: "Proporção de ações que são kills (0..1). Quanto mais próximo de 1, melhor).",
+    KillerRate: "Kills por 100 ações (percentual).",
+    EfficiencyRate: "Pontos por ação (points / (kills+deaths)).",
+    ChampRate: "Pontos por kill (points / kills).",
+    Strength:
       "Índice composto: 2*kills + points - 0.5*deaths (valor arbitrário para ranking).",
   };
 }

@@ -423,7 +423,7 @@ class GamesNetPanzerBrowser {
         let html = `<!doctype html><html><head><meta charset="utf-8"><meta name='viewport' content='width=device-width, initial-scale=1'><title>Estatísticas Avançadas</title><style>${this.getCSS()}${css}</style></head><body><div class="container"><div class="card topline"><div><h1>Estatísticas Avançadas - ${this.currentMonthYear}</h1><div class="muted">Total jogadores: ${stats.length}</div></div><div><div class="controls"><input id="search" type="text" placeholder="Buscar jogador..." /></div></div></div>`;
 
         // Top 3 destacados com troféus
-        html += `<div class="card"><h2 style="margin:0 0 8px 0">Top 3 por Força</h2><div style="display:flex;gap:10px;flex-wrap:wrap">`;
+        html += `<div class="card"><h2 style="margin:0 0 8px 0">Top 3</h2><div style="display:flex;gap:10px;flex-wrap:wrap">`;
         const top3 = stats.slice(0,3);
         const trophyFor = (i)=> i===0? '🏆' : i===1? '🥈' : '🥉';
         top3.forEach((p,i)=>{
