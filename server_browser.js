@@ -159,12 +159,60 @@ class GamesNetPanzerBrowser {
           for (const p of newPlayers) {
             const name = p.name;
             // last pode vir do cache em memória ou da tabela persistida carregada no addGameServers
-            const last = server.cache.lastStats[name] || { kills: 0, deaths: 0, points: 0 };
+            const hasLast = server.cache.lastStats && Object.prototype.hasOwnProperty.call(server.cache.lastStats, name);
+            const last = hasLast ? server.cache.lastStats[name] : { kills: 0, deaths: 0, points: 0 };
+
+            // Se não temos um last persistido para esse jogador neste servidor, trata-se da primeira leitura
+            // desde que o jogador entrou no servidor. Nesse caso, usamos o estado atual como baseline
+            // e NÃO contabilizamos delta no ranking — isso evita que o simples ato de se conectar credite
+            // ou debite pontos do ranking global. Persistimos o baseline para comparações futuras.
+            if (!hasLast) {
+              // grava baseline em memória e persiste para evitar aplicar deltas na próxima leitura
+              server.cache.lastStats[name] = { kills: p.kills, deaths: p.deaths, points: p.points };
+              try {
+                const { upsertLastStats } = require("./ranking");
+                upsertLastStats(`${server.ip}:${server.port}`, name, p.kills, p.deaths, p.points, this.currentMonthYear);
+              } catch (err) {
+                console.warn('⚠️ Falha ao persistir baseline lastStats para', name, err.message || err);
+              }
+              // não aplica deltas na primeira leitura
+              continue;
+            }
+
             let dk = p.kills - (last.kills || 0);
             let dd = p.deaths - (last.deaths || 0);
             let dp = p.points - (last.points || 0);
+            // Se kills/deaths diminuíram, provavelmente houve reinício do contador — trata como o valor atual
             if (dk < 0) dk = p.kills;
             if (dd < 0) dd = p.deaths;
+
+            // Permitir deltas negativos por padrão. Porém, se o jogador reconectar e o
+            // servidor reportar exatamente 0 pontos, isso normalmente indica que o
+            // contador do servidor foi reiniciado quando o jogador estava offline —
+            // nesse caso tratamos como reset do baseline (não subtrair do ranking).
+            if (dp < 0 && p.points === 0) {
+              // Trata reconexão com 0 pontos como baseline SOMENTE se o baseline
+              // anterior persistido era positivo (>0). Caso contrário, se o
+              // jogador já tinha 0 ou pontos negativos registrados, não
+              // devemos transformar o delta em 0 — mantemos o delta negativo.
+              if ((last.points || 0) > 0) {
+                dp = p.points; // que é 0
+              } else {
+                // Mantemos dp negativo: jogador já tinha baseline <= 0, então
+                // não é um caso típico de 'contador reiniciado enquanto offline'.
+              }
+            } else {
+              // Caso contrário, respeita a variável de ambiente para forçar tratamento
+              // de diminuições como reset; padrão é permitir deltas negativos.
+              const treatDecreaseAsReset = process.env.TREAT_POINT_DECREASE_AS_RESET === '1' || process.env.TREAT_POINT_DECREASE_AS_RESET === 'true';
+              if (dp < 0 && treatDecreaseAsReset) {
+                // Possível reinício do contador: usa o valor absoluto atual como incremento
+                dp = p.points;
+              } else if (dp < 0) {
+                // Mantém dp negativo e loga para auditoria.
+                // negative delta: intentionally silent
+              }
+            }
 
             // acumula no buffer global de deltas para aplicar em lote
             if (name) {
@@ -314,11 +362,11 @@ class GamesNetPanzerBrowser {
     `;
   }
 
-  generateRankingHTML(search = "", page = 1, perPage = 20, lang = 'pt') {
+  generateRankingHTML(search = "", page = 1, perPage = 20, lang = 'pt', order = 'all') {
     const total = countPlayers(this.currentMonthYear, search);
     const totalPages = Math.ceil(total / perPage);
     const offset = (page - 1) * perPage;
-    const ranking = getRanking(this.currentMonthYear, search, perPage, offset);
+    const ranking = getRanking(this.currentMonthYear, search, perPage, offset, order);
 
     const trophy = (rank) => {
       if (rank === 1) return '🏆';
@@ -329,21 +377,75 @@ class GamesNetPanzerBrowser {
 
   let html = `<html><head><title>${t(lang,'ranking_title')}</title><meta name="viewport" content="width=device-width, initial-scale=1"><style>${this.getCSS()}</style></head><body><div class="container">`;
   // header: title + date on one line, search on the next line (use CSS classes)
-  html += `<div class="card"><header class="ranking-header"><div class="title-row"><h1>${t(lang,'ranking_title')}</h1><div class="muted">${this.currentMonthYear}</div></div><div class="muted">${t(lang,'total_players',{ total })}</div><div><form method="GET" class="ranking-search"><input type="text" name="search" placeholder="${t(lang,'search_placeholder')}" value="${this.escapeHtml(search)}"><input type="hidden" name="language" value="${lang}"><button class="button" type="submit">${t(lang,'search_button')}</button></form></div></header></div>`;
+  html += `<div class="card"><header class="ranking-header"><div class="title-row"><h1>${t(lang,'ranking_title')}</h1><div class="muted">${this.currentMonthYear}</div></div><div class="muted">${t(lang,'total_players',{ total })}</div><div><form method="GET" class="ranking-search"><input type="text" name="search" placeholder="${t(lang,'search_placeholder')}" value="${this.escapeHtml(search)}"><input type="hidden" name="language" value="${lang}"><button class="button" type="submit">${t(lang,'search_button')}</button></form></div></header>`;
 
-  html += `<div class="card"><div class="table-wrap"><table class="ranking-table"><thead><tr><th>${t(lang,'rank')}</th><th>${t(lang,'player')}</th><th>${t(lang,'kills')}</th><th>${t(lang,'deaths')}</th><th>${t(lang,'points')}</th></tr></thead><tbody>`;
+  // Controls: choose ordering mode (inclui opção 'all' para exibir todos empilhados)
+  const modes = [ 'all','kills','strength','ratio','points' ];
+  const searchEnc = encodeURIComponent(search || '');
+  html += `<div style="margin-top:8px">`;
+  // Desktop: badges
+  html += `<div class="order-badges" style="display:flex;gap:8px;align-items:center">${t(lang,'order_all')}:`;
+  modes.forEach(m=>{
+    const label = t(lang, `order_${m}`) !== `order_${m}` ? t(lang, `order_${m}`) : m.toUpperCase();
+    if (m === order) html += ` <span class="badge" style="background:linear-gradient(90deg,#06b6d4,#3b82f6);color:#061024;font-weight:800;box-shadow:0 8px 20px rgba(3,7,18,0.6);transform:translateY(-2px);">${label}</span>`;
+    else html += ` <a class="badge" href="/ranking?order=${m}&search=${searchEnc}&language=${lang}">${label}</a>`;
+  });
+  html += `</div>`;
+
+  // Mobile: select (visível apenas em telas pequenas via CSS inline)
+  html += `<div class="order-select" style="display:none;margin-top:8px"><label for="orderSelect" style="margin-right:8px">${t(lang,'order_all')}:</label><select id="orderSelect" data-search="${searchEnc}" data-lang="${lang}" onchange="(function(e){const s=e.target.dataset.search;const l=e.target.dataset.lang;const o=e.target.value;window.location='/ranking?order='+o+'&search='+s+'&language='+l;})(event)">`;
+  modes.forEach(m=>{
+    const label = t(lang, `order_${m}`) !== `order_${m}` ? t(lang, `order_${m}`) : m.toUpperCase();
+    const sel = m===order? ' selected': '';
+    html += `<option value="${m}"${sel}>${label}</option>`;
+  });
+  html += `</select></div>`;
+
+  // CSS para alternar visibilidade (simplificado)
+  html += `<style>@media(max-width:760px){.order-badges{display:none!important}.order-select{display:block!important}}</style>`;
+
+  html += `</div></div>`;
+
+  // Se order === 'all', renderiza todos os modos empilhados
+  if (order === 'all') {
+  const showModes = ['kills','strength','ratio','points'];
+    for (const mkey of showModes) {
+      const tableRanking = getRanking(this.currentMonthYear, search, perPage, offset, mkey);
+  const modeLabel = t(lang, `order_${mkey}`) !== `order_${mkey}` ? t(lang, `order_${mkey}`) : mkey.toUpperCase();
+  const modeDesc = t(lang, `order_${mkey}_desc`) !== `order_${mkey}_desc` ? t(lang, `order_${mkey}_desc`) : '';
+  html += `<div class="card"><h2 style="margin:0 0 8px 0">${modeLabel}</h2><div class="muted" style="margin-top:6px">${modeDesc}</div><div class="table-wrap"><table class="ranking-table"><thead><tr><th>${t(lang,'rank')}</th><th>${t(lang,'player')}</th><th>${t(lang,'kills')}</th><th>${t(lang,'deaths')}</th><th>${t(lang,'points')}</th></tr></thead><tbody>`;
+      tableRanking.forEach((p,i)=>{
+        const rank = offset + i + 1;
+        const trophyEmoji = trophy(rank);
+        html += `<tr><td data-label="${t(lang,'rank')}">${rank} ${trophyEmoji ? `<span class="trophy">${trophyEmoji}</span>` : ''}</td><td data-label="${t(lang,'player')}">${p.name}</td><td data-label="${t(lang,'kills')}">${p.kills}</td><td data-label="${t(lang,'deaths')}">${p.deaths}</td><td data-label="${t(lang,'points')}">${p.points}</td></tr>`;
+      });
+      html += `</tbody></table></div><div style="text-align:center;margin-top:12px">`;
+      for (let i = 1; i <= totalPages; i++) {
+        if (i === page) html += `<span class="badge">${i}</span> `;
+        else html += `<a href="/ranking?page=${i}&search=${encodeURIComponent(search)}&language=${lang}&order=${mkey}" class="badge" style="opacity:0.85">${i}</a> `;
+      }
+      html += `</div></div>`;
+    }
+    html += `</body></html>`;
+    return html;
+  }
+
+  // Renderiza apenas o modo selecionado (comportamento anterior)
+  const singleModeLabel = t(lang, `order_${order}`) !== `order_${order}` ? t(lang, `order_${order}`) : order.toUpperCase();
+  const singleModeDesc = t(lang, `order_${order}_desc`) !== `order_${order}_desc` ? t(lang, `order_${order}_desc`) : '';
+  html += `<div class="card"><h2 style="margin:0 0 8px 0">${singleModeLabel}</h2><div class="muted" style="margin-top:6px">${singleModeDesc}</div><div class="table-wrap"><table class="ranking-table"><thead><tr><th>${t(lang,'rank')}</th><th>${t(lang,'player')}</th><th>${t(lang,'kills')}</th><th>${t(lang,'deaths')}</th><th>${t(lang,'points')}</th></tr></thead><tbody>`;
 
     ranking.forEach((p, i) => {
       const rank = offset + i + 1;
       const trophyEmoji = trophy(rank);
-  html += `<tr><td data-label="Rank">${rank} ${trophyEmoji ? `<span class="trophy">${trophyEmoji}</span>` : ''}</td><td data-label="Jogador">${p.name}</td><td data-label="Kills">${p.kills}</td><td data-label="Deaths">${p.deaths}</td><td data-label="Points">${p.points}</td></tr>`;
+  html += `<tr><td data-label="${t(lang,'rank')}">${rank} ${trophyEmoji ? `<span class="trophy">${trophyEmoji}</span>` : ''}</td><td data-label="${t(lang,'player')}">${p.name}</td><td data-label="${t(lang,'kills')}">${p.kills}</td><td data-label="${t(lang,'deaths')}">${p.deaths}</td><td data-label="${t(lang,'points')}">${p.points}</td></tr>`;
     });
 
   html += `</tbody></table></div><div style="text-align:center;margin-top:12px">`;
     for (let i = 1; i <= totalPages; i++) {
       if (i === page) html += `<span class="badge">${i}</span> `;
       else
-          html += `<a href="/ranking?page=${i}&search=${encodeURIComponent(search)}&language=${lang}" class="badge" style="opacity:0.85">${i}</a> `;
+          html += `<a href="/ranking?page=${i}&search=${encodeURIComponent(search)}&language=${lang}&order=${order}" class="badge" style="opacity:0.85">${i}</a> `;
     }
 
     html += `</div></div></body></html>`;
@@ -406,8 +508,9 @@ class GamesNetPanzerBrowser {
       if (urlObj.pathname === "/ranking") {
         const search = urlObj.searchParams.get("search") || "";
         const page = parseInt(urlObj.searchParams.get("page") || "1", 10);
+  const order = urlObj.searchParams.get("order") || "all";
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-        res.end(this.generateRankingHTML(search, page, undefined, lang));
+        res.end(this.generateRankingHTML(search, page, undefined, lang, order));
       } else if (urlObj.pathname === "/statistics") {
         // Nova rota para estatísticas avançadas (apenas UI/visual) - não altera coleta de dados
         const { getAllPlayerStats, describeMetrics } = require("./statistics");
@@ -446,7 +549,9 @@ class GamesNetPanzerBrowser {
         top3.forEach((p,i)=>{
           const expertWidth = Math.min(100, Math.max(0, p.expertRate * 100));
           const effWidth = Math.min(100, Math.max(0, p.efficiencyRate * 10));
-          html += `<div class="player" style="flex:1 1 220px"><h3>${trophyFor(i)} ${p.name}</h3><div class="small">${t(lang,'strength')}: <strong>${p.strength}</strong> • K:${p.kills} D:${p.deaths} P:${p.points}</div><div style="margin-top:8px"><div class="small">${t(lang,'expert_rate')}</div><div class="bar" style="margin-top:6px"><i style="width:${expertWidth}%"></i></div></div><div style="margin-top:8px"><div class="small">${t(lang,'efficiency')}</div><div class="bar" style="margin-top:6px"><i style="width:${effWidth}%"></i></div></div></div>`;
+          const expertDisplay = (Number(p.expertRate) * 100).toFixed(2) + '%';
+          const efficiencyDisplay = Number(p.efficiencyRate).toFixed(2);
+          html += `<div class="player" style="flex:1 1 220px"><h3>${trophyFor(i)} ${p.name}</h3><div class="small">${t(lang,'strength')}: <strong>${p.strength}</strong> • K:${p.kills} D:${p.deaths} P:${p.points}</div><div style="margin-top:8px"><div class="small" title="${expertDisplay}">${t(lang,'expert_rate')}</div><div class="bar" style="margin-top:6px" title="${expertDisplay}"><i style="width:${expertWidth}%"></i></div></div><div style="margin-top:8px"><div class="small" title="${efficiencyDisplay}">${t(lang,'efficiency')}</div><div class="bar" style="margin-top:6px" title="${efficiencyDisplay}"><i style="width:${effWidth}%"></i></div></div></div>`;
         });
         html += `</div></div>`;
 
@@ -455,7 +560,9 @@ class GamesNetPanzerBrowser {
         stats.forEach((p, idx)=>{
           const expertWidth = Math.min(100, Math.max(0, p.expertRate * 100));
           const effWidth = Math.min(100, Math.max(0, p.efficiencyRate * 10));
-          html += `<div class="player"><h3>${idx+1}. ${p.name}</h3><div class="small">K:${p.kills} • D:${p.deaths} • P:${p.points} • ${t(lang,'strength')}:${p.strength}</div><div style="margin-top:8px"><div class="small">${t(lang,'expert_rate')}</div><div class="bar" style="margin-top:6px"><i style="width:${expertWidth}%"></i></div></div><div style="margin-top:8px"><div class="small">${t(lang,'efficiency')}</div><div class="bar" style="margin-top:6px"><i style="width:${effWidth}%"></i></div></div></div>`;
+          const expertDisplay = (Number(p.expertRate) * 100).toFixed(2) + '%';
+          const efficiencyDisplay = Number(p.efficiencyRate).toFixed(2);
+          html += `<div class="player"><h3>${idx+1}. ${p.name}</h3><div class="small">K:${p.kills} • D:${p.deaths} • P:${p.points} • ${t(lang,'strength')}:${p.strength}</div><div style="margin-top:8px"><div class="small" title="${expertDisplay}">${t(lang,'expert_rate')}</div><div class="bar" style="margin-top:6px" title="${expertDisplay}"><i style="width:${expertWidth}%"></i></div></div><div style="margin-top:8px"><div class="small" title="${efficiencyDisplay}">${t(lang,'efficiency')}</div><div class="bar" style="margin-top:6px" title="${efficiencyDisplay}"><i style="width:${effWidth}%"></i></div></div></div>`;
         });
         html += `</div></div>`;
 
