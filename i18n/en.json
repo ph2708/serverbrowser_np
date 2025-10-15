@@ -44,4 +44,5 @@
   "order_ratio":"Kills/Deaths Ratio",
   "order_ratio_desc":"Sorts by (kills+1)/(deaths+1) to favor efficiency while avoiding division by zero.",
   "order_all":"All rankings"
+  ,"no_players":"No players"
 }

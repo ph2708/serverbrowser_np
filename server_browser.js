@@ -475,7 +475,7 @@ class GamesNetPanzerBrowser {
       const c = s.cache || { players: [] };
       const details = c.players
         .map((p) => `${p.name} <span class="muted">(K:${p.kills} D:${p.deaths} P:${p.points})</span>`)
-        .join("<br>") || "<span class='muted'>Sem jogadores</span>";
+        .join("<br>") || `<span class='muted'>${t(lang,'no_players')}</span>`;
       html += `<tr><td data-label="${t(lang,'port')}">${s.port}</td><td data-label="${t(lang,'server')}">${c.hostname || "N/A"}</td><td data-label="${t(lang,'map')}">${c.mapname || "N/A"}</td><td data-label="${t(lang,'style')}">${c.gamestyle || "N/A"}</td><td data-label="${t(lang,'count')}">${c.numplayers || 0}</td><td data-label="${t(lang,'players')}">${details}</td></tr>`;
     });
     html += `</tbody></table></div></div></div>` + this.generateTopNav(lang, '/') + `</body></html>`;
