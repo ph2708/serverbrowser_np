@@ -359,6 +359,8 @@ class GamesNetPanzerBrowser {
       .badge{display:inline-block;margin:6px auto;padding:6px 10px}
     }
 
+  /* spacer under navigation to create blank area */
+  .nav-spacer{height:36px;width:100%}
     `;
   }
 
@@ -378,7 +380,7 @@ class GamesNetPanzerBrowser {
     const statsClass = currentPath.startsWith('/statistics') ? 'active' : '';
 
     const langQ = `?language=${encodeURIComponent(lang || 'pt')}`;
-    return `<style>${navStyle}</style><nav class="topnav"><a class="${homeClass}" href="/${langQ}">${homeLabel}</a><a class="${rankingClass}" href="/ranking${langQ}">${rankingLabel}</a><a class="${statsClass}" href="/statistics${langQ}">${statsLabel}</a></nav>`;
+    return `<style>${navStyle}</style><nav class="topnav"><a class="${homeClass}" href="/${langQ}">${homeLabel}</a><a class="${rankingClass}" href="/ranking${langQ}">${rankingLabel}</a><a class="${statsClass}" href="/statistics${langQ}">${statsLabel}</a></nav><div class="nav-spacer"></div>`;
   }
 
   generateRankingHTML(search = "", page = 1, perPage = 20, lang = 'pt', order = 'all') {
