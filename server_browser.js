@@ -293,7 +293,7 @@ class GamesNetPanzerBrowser {
 
     /* Page */
     html,body{height:100%}
-    body{font-family:Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; background:linear-gradient(180deg,#0b1220 0%, #071027 100%);color:#e6eef8;margin:0;padding:28px;-webkit-font-smoothing:antialiased}
+  body{font-family:Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; background:linear-gradient(180deg,#0b1220 0%, #071027 100%);color:#e6eef8;margin:0;padding:28px 28px 64px;-webkit-font-smoothing:antialiased}
     .container{max-width:1200px;margin:0 auto}
 
     /* Cards and headings */
@@ -340,7 +340,7 @@ class GamesNetPanzerBrowser {
     }
 
     @media (max-width:560px){
-      body{padding:12px}
+      body{padding:12px 12px 64px}
       .container{padding:0 8px}
       .card{padding:10px}
       .topline{flex-direction:column;align-items:flex-start;gap:8px}
@@ -360,6 +360,25 @@ class GamesNetPanzerBrowser {
     }
 
     `;
+  }
+
+  // Gera o menu superior comum para navegação entre páginas
+  generateTopNav(lang = 'pt', currentPath = '/') {
+    const navStyle = `
+      .topnav{display:flex;gap:8px;align-items:center;justify-content:center;margin:24px 0;flex-wrap:wrap}
+      .topnav a{padding:8px 12px;border-radius:8px;text-decoration:none;color:var(--muted);background:transparent}
+      .topnav a.active{background:linear-gradient(90deg,#06b6d4,#3b82f6);color:#061024;font-weight:700}
+    `;
+    const homeLabel = t(lang, 'servers_title') !== 'servers_title' ? t(lang, 'servers_title') : 'Servers';
+    const rankingLabel = t(lang, 'ranking_title') !== 'ranking_title' ? t(lang, 'ranking_title') : 'Ranking';
+    const statsLabel = t(lang, 'statistics_title') !== 'statistics_title' ? t(lang, 'statistics_title') : 'Statistics';
+
+    const homeClass = currentPath === '/' ? 'active' : '';
+    const rankingClass = currentPath.startsWith('/ranking') ? 'active' : '';
+    const statsClass = currentPath.startsWith('/statistics') ? 'active' : '';
+
+    const langQ = `?language=${encodeURIComponent(lang || 'pt')}`;
+    return `<style>${navStyle}</style><nav class="topnav"><a class="${homeClass}" href="/${langQ}">${homeLabel}</a><a class="${rankingClass}" href="/ranking${langQ}">${rankingLabel}</a><a class="${statsClass}" href="/statistics${langQ}">${statsLabel}</a></nav>`;
   }
 
   generateRankingHTML(search = "", page = 1, perPage = 20, lang = 'pt', order = 'all') {
@@ -425,9 +444,7 @@ class GamesNetPanzerBrowser {
         else html += `<a href="/ranking?page=${i}&search=${encodeURIComponent(search)}&language=${lang}&order=${mkey}" class="badge" style="opacity:0.85">${i}</a> `;
       }
       html += `</div></div>`;
-    }
-    html += `</body></html>`;
-    return html;
+      }
   }
 
   // Renderiza apenas o modo selecionado (comportamento anterior)
@@ -448,8 +465,8 @@ class GamesNetPanzerBrowser {
           html += `<a href="/ranking?page=${i}&search=${encodeURIComponent(search)}&language=${lang}&order=${order}" class="badge" style="opacity:0.85">${i}</a> `;
     }
 
-    html += `</div></div></body></html>`;
-    return html;
+  html += `</div></div>` + this.generateTopNav(lang, '/ranking') + `</body></html>`;
+  return html;
   }
 
   createHTMLTable(lang = 'pt') {
@@ -461,7 +478,7 @@ class GamesNetPanzerBrowser {
         .join("<br>") || "<span class='muted'>Sem jogadores</span>";
       html += `<tr><td data-label="${t(lang,'port')}">${s.port}</td><td data-label="${t(lang,'server')}">${c.hostname || "N/A"}</td><td data-label="${t(lang,'map')}">${c.mapname || "N/A"}</td><td data-label="${t(lang,'style')}">${c.gamestyle || "N/A"}</td><td data-label="${t(lang,'count')}">${c.numplayers || 0}</td><td data-label="${t(lang,'players')}">${details}</td></tr>`;
     });
-    html += `</tbody></table></div></div></div></body></html>`;
+    html += `</tbody></table></div></div></div>` + this.generateTopNav(lang, '/') + `</body></html>`;
     return html;
   }
 
@@ -581,7 +598,7 @@ class GamesNetPanzerBrowser {
         }
         html += `</ul></div>`;
 
-        html += `</div></body></html>`;
+  html += `</div>` + this.generateTopNav(lang, '/statistics') + `</body></html>`;
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
         res.end(html);
       } else {
