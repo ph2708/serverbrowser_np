@@ -12,6 +12,7 @@ const {
   getRanking,
   countPlayers,
 } = require("./ranking");
+const { normalizeLanguage, t } = require("./i18n");
 
 // =============================
 // ======= SERVER BROWSER ======
@@ -313,7 +314,7 @@ class GamesNetPanzerBrowser {
     `;
   }
 
-  generateRankingHTML(search = "", page = 1, perPage = 20) {
+  generateRankingHTML(search = "", page = 1, perPage = 20, lang = 'pt') {
     const total = countPlayers(this.currentMonthYear, search);
     const totalPages = Math.ceil(total / perPage);
     const offset = (page - 1) * perPage;
@@ -326,11 +327,11 @@ class GamesNetPanzerBrowser {
       return '';
     };
 
-  let html = `<html><head><title>Ranking Mensal</title><meta name="viewport" content="width=device-width, initial-scale=1"><style>${this.getCSS()}</style></head><body><div class="container">`;
+  let html = `<html><head><title>${t(lang,'ranking_title')}</title><meta name="viewport" content="width=device-width, initial-scale=1"><style>${this.getCSS()}</style></head><body><div class="container">`;
   // header: title + date on one line, search on the next line (use CSS classes)
-  html += `<div class="card"><header class="ranking-header"><div class="title-row"><h1>Ranking Mensal</h1><div class="muted">${this.currentMonthYear}</div></div><div class="muted">Total: ${total} jogadores</div><div><form method="GET" class="ranking-search"><input type="text" name="search" placeholder="Buscar jogador" value="${search}"><button class="button" type="submit">Buscar</button></form></div></header></div>`;
+  html += `<div class="card"><header class="ranking-header"><div class="title-row"><h1>${t(lang,'ranking_title')}</h1><div class="muted">${this.currentMonthYear}</div></div><div class="muted">${t(lang,'total_players',{ total })}</div><div><form method="GET" class="ranking-search"><input type="text" name="search" placeholder="${t(lang,'search_placeholder')}" value="${this.escapeHtml(search)}"><input type="hidden" name="language" value="${lang}"><button class="button" type="submit">${t(lang,'search_button')}</button></form></div></header></div>`;
 
-  html += `<div class="card"><div class="table-wrap"><table class="ranking-table"><thead><tr><th>Rank</th><th>Jogador</th><th>Kills</th><th>Deaths</th><th>Points</th></tr></thead><tbody>`;
+  html += `<div class="card"><div class="table-wrap"><table class="ranking-table"><thead><tr><th>${t(lang,'rank')}</th><th>${t(lang,'player')}</th><th>${t(lang,'kills')}</th><th>${t(lang,'deaths')}</th><th>${t(lang,'points')}</th></tr></thead><tbody>`;
 
     ranking.forEach((p, i) => {
       const rank = offset + i + 1;
@@ -342,21 +343,21 @@ class GamesNetPanzerBrowser {
     for (let i = 1; i <= totalPages; i++) {
       if (i === page) html += `<span class="badge">${i}</span> `;
       else
-        html += `<a href="/ranking?page=${i}&search=${encodeURIComponent(search)}" class="badge" style="opacity:0.85">${i}</a> `;
+          html += `<a href="/ranking?page=${i}&search=${encodeURIComponent(search)}&language=${lang}" class="badge" style="opacity:0.85">${i}</a> `;
     }
 
     html += `</div></div></body></html>`;
     return html;
   }
 
-  createHTMLTable() {
-  let html = `<html><head><title>NetPanzer Servers</title><meta name="viewport" content="width=device-width, initial-scale=1"><style>${this.getCSS()}</style></head><body><div class="container"><div class="card"><h1>NetPanzer Servers</h1><div class="muted">Servidores listados: ${Object.keys(this.gameservers).length}</div></div><div class="card"><div class="table-wrap"><table class="servers-table"><thead><tr><th>Porta</th><th>Servidor</th><th>Mapa</th><th>Estilo</th><th>Contagem</th><th>Jogadores</th></tr></thead><tbody>`;
+  createHTMLTable(lang = 'pt') {
+  let html = `<html><head><title>${t(lang,'servers_title')}</title><meta name="viewport" content="width=device-width, initial-scale=1"><style>${this.getCSS()}</style></head><body><div class="container"><div class="card"><h1>${t(lang,'servers_title')}</h1><div class="muted">${t(lang,'servers_listed',{ count: Object.keys(this.gameservers).length })}</div></div><div class="card"><div class="table-wrap"><table class="servers-table"><thead><tr><th>${t(lang,'port')}</th><th>${t(lang,'server')}</th><th>${t(lang,'map')}</th><th>${t(lang,'style')}</th><th>${t(lang,'count')}</th><th>${t(lang,'players')}</th></tr></thead><tbody>`;
     Object.values(this.gameservers).forEach((s) => {
       const c = s.cache || { players: [] };
       const details = c.players
         .map((p) => `${p.name} <span class="muted">(K:${p.kills} D:${p.deaths} P:${p.points})</span>`)
         .join("<br>") || "<span class='muted'>Sem jogadores</span>";
-      html += `<tr><td data-label="Porta">${s.port}</td><td data-label="Servidor">${c.hostname || "N/A"}</td><td data-label="Mapa">${c.mapname || "N/A"}</td><td data-label="Estilo">${c.gamestyle || "N/A"}</td><td data-label="Contagem">${c.numplayers || 0}</td><td data-label="Jogadores">${details}</td></tr>`;
+      html += `<tr><td data-label="${t(lang,'port')}">${s.port}</td><td data-label="${t(lang,'server')}">${c.hostname || "N/A"}</td><td data-label="${t(lang,'map')}">${c.mapname || "N/A"}</td><td data-label="${t(lang,'style')}">${c.gamestyle || "N/A"}</td><td data-label="${t(lang,'count')}">${c.numplayers || 0}</td><td data-label="${t(lang,'players')}">${details}</td></tr>`;
     });
     html += `</tbody></table></div></div></div></body></html>`;
     return html;
@@ -399,11 +400,14 @@ class GamesNetPanzerBrowser {
       const protocol = req.connection.encrypted ? "https" : "http";
       const urlObj = new URL(req.url, `${protocol}://${host}`);
 
+      // normaliza o idioma a partir do query param `language` (ex: ?language=english)
+      const lang = normalizeLanguage(urlObj.searchParams.get("language"));
+
       if (urlObj.pathname === "/ranking") {
         const search = urlObj.searchParams.get("search") || "";
         const page = parseInt(urlObj.searchParams.get("page") || "1", 10);
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-        res.end(this.generateRankingHTML(search, page));
+        res.end(this.generateRankingHTML(search, page, undefined, lang));
       } else if (urlObj.pathname === "/statistics") {
         // Nova rota para estatísticas avançadas (apenas UI/visual) - não altera coleta de dados
         const { getAllPlayerStats, describeMetrics } = require("./statistics");
@@ -433,31 +437,41 @@ class GamesNetPanzerBrowser {
           .topline{display:flex;justify-content:space-between;align-items:center}
         `;
 
-  let html = `<!doctype html><html><head><meta charset="utf-8"><meta name='viewport' content='width=device-width, initial-scale=1'><title>Estatísticas Avançadas</title><style>${this.getCSS()}${css}</style></head><body><div class="container"><div class="card topline"><div><h1>Estatísticas Avançadas - ${this.currentMonthYear}</h1><div class="muted">Total jogadores: ${stats.length}</div></div><div><div class="controls"><form method="GET" action="/statistics"><input id="search" name="search" type="text" placeholder="Buscar jogador..." value="${this.escapeHtml(search)}" /><button type="submit">Buscar</button></form></div></div></div>`;
+  let html = `<!doctype html><html><head><meta charset="utf-8"><meta name='viewport' content='width=device-width, initial-scale=1'><title>${t(lang,'statistics_title')}</title><style>${this.getCSS()}${css}</style></head><body><div class="container"><div class="card topline"><div><h1>${t(lang,'statistics_title')} - ${this.currentMonthYear}</h1><div class="muted">${t(lang,'total_players_count',{ count: stats.length })}</div></div><div><div class="controls"><form method="GET" action="/statistics"><input id="search" name="search" type="text" placeholder="${t(lang,'search_placeholder')}..." value="${this.escapeHtml(search)}" /><input type="hidden" name="language" value="${lang}" /><button type="submit">${t(lang,'search_button')}</button></form></div></div></div>`;
 
         // Top 3 destacados com troféus
-        html += `<div class="card"><h2 style="margin:0 0 8px 0">Top 3</h2><div style="display:flex;gap:10px;flex-wrap:wrap">`;
+  html += `<div class="card"><h2 style="margin:0 0 8px 0">${t(lang,'top3')}</h2><div style="display:flex;gap:10px;flex-wrap:wrap">`;
         const top3 = stats.slice(0,3);
         const trophyFor = (i)=> i===0? '🏆' : i===1? '🥈' : '🥉';
         top3.forEach((p,i)=>{
           const expertWidth = Math.min(100, Math.max(0, p.expertRate * 100));
           const effWidth = Math.min(100, Math.max(0, p.efficiencyRate * 10));
-          html += `<div class="player" style="flex:1 1 220px"><h3>${trophyFor(i)} ${p.name}</h3><div class="small">Strength: <strong>${p.strength}</strong> • K:${p.kills} D:${p.deaths} P:${p.points}</div><div style="margin-top:8px"><div class="small">Expert Rate</div><div class="bar" style="margin-top:6px"><i style="width:${expertWidth}%"></i></div></div><div style="margin-top:8px"><div class="small">Efficiency</div><div class="bar" style="margin-top:6px"><i style="width:${effWidth}%"></i></div></div></div>`;
+          html += `<div class="player" style="flex:1 1 220px"><h3>${trophyFor(i)} ${p.name}</h3><div class="small">${t(lang,'strength')}: <strong>${p.strength}</strong> • K:${p.kills} D:${p.deaths} P:${p.points}</div><div style="margin-top:8px"><div class="small">${t(lang,'expert_rate')}</div><div class="bar" style="margin-top:6px"><i style="width:${expertWidth}%"></i></div></div><div style="margin-top:8px"><div class="small">${t(lang,'efficiency')}</div><div class="bar" style="margin-top:6px"><i style="width:${effWidth}%"></i></div></div></div>`;
         });
         html += `</div></div>`;
 
-        // Grid de jogadores (cards)
-        html += `<div class="card"><h2 style="margin:0 0 10px 0">Jogadores</h2><div class="grid">`;
+  // Grid de jogadores (cards)
+  html += `<div class="card"><h2 style="margin:0 0 10px 0">${t(lang,'players_heading')}</h2><div class="grid">`;
         stats.forEach((p, idx)=>{
           const expertWidth = Math.min(100, Math.max(0, p.expertRate * 100));
           const effWidth = Math.min(100, Math.max(0, p.efficiencyRate * 10));
-          html += `<div class="player"><h3>${idx+1}. ${p.name}</h3><div class="small">K:${p.kills} • D:${p.deaths} • P:${p.points} • Strength:${p.strength}</div><div style="margin-top:8px"><div class="small">Expert Rate</div><div class="bar" style="margin-top:6px"><i style="width:${expertWidth}%"></i></div></div><div style="margin-top:8px"><div class="small">Efficiency</div><div class="bar" style="margin-top:6px"><i style="width:${effWidth}%"></i></div></div></div>`;
+          html += `<div class="player"><h3>${idx+1}. ${p.name}</h3><div class="small">K:${p.kills} • D:${p.deaths} • P:${p.points} • ${t(lang,'strength')}:${p.strength}</div><div style="margin-top:8px"><div class="small">${t(lang,'expert_rate')}</div><div class="bar" style="margin-top:6px"><i style="width:${expertWidth}%"></i></div></div><div style="margin-top:8px"><div class="small">${t(lang,'efficiency')}</div><div class="bar" style="margin-top:6px"><i style="width:${effWidth}%"></i></div></div></div>`;
         });
         html += `</div></div>`;
 
-        // descrição das métricas
-        html += `<div class="card"><strong>O que é cada métrica?</strong><ul style="margin-top:8px">`;
-        for (const k in metricsDesc) html += `<li><strong>${k}</strong>: ${metricsDesc[k]}</li>`;
+        // descrição das métricas - usa tradução se disponível, caso contrário usa description gerada
+        html += `<div class="card"><strong>${t(lang,'metrics_desc_title')}</strong><ul style="margin-top:8px">`;
+        for (const k in metricsDesc) {
+          // normaliza a chave para procurar no dicionário de traduções (ex: ActivityRate -> activityrate)
+          const keyLookup = k.toLowerCase();
+          // label traduzido (se existir), caso contrário usa a chave original
+          const translatedLabel = t(lang, keyLookup) !== keyLookup ? t(lang, keyLookup) : k;
+          // procura descrição traduzida (chave como activityrate_desc). Se não existir, usa metricsDesc[k]
+          const descKey = `${keyLookup}_desc`;
+          const translatedDesc = t(lang, descKey);
+          const desc = translatedDesc !== descKey ? translatedDesc : metricsDesc[k] || "";
+          html += `<li><strong>${translatedLabel}</strong>: ${desc}</li>`;
+        }
         html += `</ul></div>`;
 
         html += `</div></body></html>`;
@@ -465,7 +479,7 @@ class GamesNetPanzerBrowser {
         res.end(html);
       } else {
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-        res.end(this.createHTMLTable());
+        res.end(this.createHTMLTable(lang));
       }
     } catch (err) {
       console.error("❌ Erro na requisição:", err);
